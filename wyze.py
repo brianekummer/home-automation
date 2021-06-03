@@ -7,13 +7,45 @@
     WYZE_PASSWORD="xxxxxxxx"
     WYZE_DEVICE_FAN="plug|xxxxxxxxxxxx"
     WYZE_DEVICE_AC="plug|xxxxxxxxxxxx"
+
+  TO DO
+    * Why is this so slow? Is much time taken by auth? If so, cache the
+      var client, like this: 
+        https://datascience.blog.wzb.eu/2016/08/12/a-tip-for-the-impatient-simple-caching-with-python-pickle-and-decorators/
+        https://able.bio/dfernsby/pickling-objects-with-python--0342z5b
 """
 import sys
 import os
+import pickle
 from wyze_sdk import Client
 from wyze_sdk.errors import WyzeApiError
+from os import path
 
-client = Client(email=os.environ.get('WYZE_EMAIL'), password=os.environ.get('WYZE_PASSWORD'))
+#import os.path
+WYZE_CLIENT_FILENAME = "wyze_client.txt"
+
+
+
+"""
+  Create the Wyze authenticated client. Read it from cache
+  if it exists.
+
+  Returns:
+    * The authenticated client
+"""
+def create_wyze_client():
+  client = ""
+  if path.exists(WYZE_CLIENT_FILENAME):
+    new_file = open(WYZE_CLIENT_FILENAME, 'rb')
+    client = pickle.load(new_file)
+  else:
+    # create the file
+    client = Client(email=os.environ.get('WYZE_EMAIL'), password=os.environ.get('WYZE_PASSWORD'))
+    file = open(WYZE_CLIENT_FILENAME, 'wb')
+    pickle.dump(client, file)
+    file.close()
+
+  return client
 
 
 """
@@ -31,7 +63,7 @@ client = Client(email=os.environ.get('WYZE_EMAIL'), password=os.environ.get('WYZ
     * The device's type
     * The device's MAC address
 """
-def validate_device(device_name): 
+def validate_and_parse_device(device_name): 
   device_env_variable = f"WYZE_DEVICE_{device_name.upper()}"
   device_info = os.environ.get(device_env_variable)
   if device_info:
@@ -63,7 +95,7 @@ def validate_action(action):
 
 
 """
-  Validate the command-line parameters
+  Validate and parse the command-line parameters
 
   Inputs:
     * The device's name (i.e. "fan")
@@ -79,7 +111,7 @@ def validate_action(action):
     * The device's MAC address
     * The action to perform on the device
 """
-def validate_parameters(params):
+def validate_and_parse_parameters(params):
   device_type = device_mac = action = ""
   is_valid_device_name = is_valid_action = False
 
@@ -92,7 +124,7 @@ def validate_parameters(params):
     device_name = params[1].lower()
     action = params[2].lower()
 
-    is_valid_device_name, device_type, device_mac = validate_device(device_name)
+    is_valid_device_name, device_type, device_mac = validate_and_parse_device(device_name)
     is_valid_action = validate_action(action)
 
   return is_valid_device_name and is_valid_action, device_type, device_mac, action
@@ -135,9 +167,10 @@ def bulb_action():
   Main body
 """
 try:
+  client = create_wyze_client()
   is_valid = False
   device_type = device_mac = action = ""
-  is_valid, device_type, device_mac, action = validate_parameters(sys.argv)
+  is_valid, device_type, device_mac, action = validate_and_parse_parameters(sys.argv)
   if is_valid:
     device_actions = {
       "plug": plug_action,
