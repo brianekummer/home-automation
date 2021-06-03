@@ -1,17 +1,36 @@
+"""
+  Home automation scripts for Wyze devices
+  by Brian Kummer, June 2021
+
+  This script expects the following environmental variables to be set
+    WYZE_EMAIL="xxxxx@gmail.com"
+    WYZE_PASSWORD="xxxxxxxx"
+    WYZE_DEVICE_FAN="plug|xxxxxxxxxxxx"
+    WYZE_DEVICE_AC="plug|xxxxxxxxxxxx"
+"""
 import sys
 import os
 from wyze_sdk import Client
 from wyze_sdk.errors import WyzeApiError
 
-# Expects the following environmental variables to be set
-#   WYZE_EMAIL="xxxxx@gmail.com"
-#   WYZE_PASSWORD="xxxxxxxx"
-#   WYZE_DEVICE_FAN="plug|xxxxxxxxxxxx"
-#   WYZE_DEVICE_AC="plug|xxxxxxxxxxxx"
-
 client = Client(email=os.environ.get('WYZE_EMAIL'), password=os.environ.get('WYZE_PASSWORD'))
 
 
+"""
+  Validate a device name and parse the device's type and MAC address from
+  its environmental variable
+
+  Inputs:
+    * The device's name (i.e. "fan")
+
+  Outputs:
+    * An error message if the device name is invalid
+
+  Returns:
+    * Is the device's name valid?
+    * The device's type
+    * The device's MAC address
+"""
 def validate_device(device_name): 
   device_env_variable = f"WYZE_DEVICE_{device_name.upper()}"
   device_info = os.environ.get(device_env_variable)
@@ -23,6 +42,18 @@ def validate_device(device_name):
     return False, "", ""
 
 
+"""
+  Validate the action
+
+  Inputs:
+    * The action name (i.e. "on")
+
+  Outputs:
+    * An error message if the action is invalid
+
+  Returns:
+    * Is the action valid?
+"""
 def validate_action(action):
   if action != "on" and action != "off":
     print(f"Invalid action")
@@ -31,12 +62,26 @@ def validate_action(action):
     return True
 
 
+"""
+  Validate the command-line parameters
+
+  Inputs:
+    * The device's name (i.e. "fan")
+    * The action to perform on that device (i.e. "on")
+
+  Outputs:
+    * Syntax help if 2 parameters are not passed
+    * Error message(s) if the device name and/or action are invalid
+
+  Returns:
+    * Are all the parameters valid?
+    * The device's type
+    * The device's MAC address
+    * The action to perform on the device
+"""
 def validate_parameters(params):
-  device_type = ""
-  device_mac = ""
-  action = ""
-  is_valid_device_name = False
-  is_valid_action = False
+  device_type = device_mac = action = ""
+  is_valid_device_name = is_valid_action = False
 
   if len(params) != 3:
     print(f"Syntax:")
@@ -53,6 +98,16 @@ def validate_parameters(params):
   return is_valid_device_name and is_valid_action, device_type, device_mac, action
 
 
+"""
+  Perform an action on a plug
+
+  Inputs:
+    * The device's MAC address
+    * The action to perform on the device
+
+  Outputs:
+    * Turns the plug on or off
+"""
 def plug_action(device_mac, action):
   plug = client.plugs.info(device_mac=device_mac)
   if action == "off":
@@ -61,16 +116,27 @@ def plug_action(device_mac, action):
     client.plugs.turn_on(device_mac=plug.mac, device_model=plug.product.model)
 
 
+"""
+  Perform an action on a light bulb
+
+  Inputs:
+    * The device's MAC address
+    * The action to perform on the device
+
+  Outputs:
+    * Turns the bulb on or off
+"""
 def bulb_action():
   #TODO: duh!
   pass
 
 
+"""
+  Main body
+"""
 try:
   is_valid = False
-  device_type = ""
-  device_mac = ""
-  action = ""
+  device_type = device_mac = action = ""
   is_valid, device_type, device_mac, action = validate_parameters(sys.argv)
   if is_valid:
     device_actions = {
