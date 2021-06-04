@@ -110,49 +110,26 @@ def parse_parameters(params):
 
 
 """
-  Validate the requested bulb brightness
+  Validate the requested bulb property
 
   Inputs:
-    * action_value is the requested brightness
+    * property_name is the name of the property
+    * property_value is the requested value of the property
 
   Returns:
     * Is it valid?
 """
-def validate_bulb_brightness(action_value):
+def validate_bulb_action_value(property_name, property_value, min_value, max_value):
   is_valid = False
 
-  if action_value == None:
+  if property_value == None:
     print(f"action-value is a required field\n")
-  elif action_value in {'+', '-'}:
+  elif property_value in {'+', '-'}:
      is_valid = True
-  elif action_value.isnumeric() and WYZE_BULB_BRIGHTNESS_MIN <= action_value <= WYZE_BULB_BRIGHTNESS_MAX:
+  elif property_value.isnumeric() and min_value <= property_value <= max_value:
     is_valid = True
   else:
-    print(f"{action_value} is not a valid brightness value\n")
-
-  return is_valid
-
-
-"""
-  Validate the requested bulb color temperature
-
-  Inputs:
-    * action_value is the requested color temperature
-
-  Returns:
-    * Is it valid?
-"""
-def validate_bulb_color_temperature(action_value):
-  is_valid = False
-
-  if action_value == None:
-    print(f"action-value is a required field\n")
-  elif action_value in {'+', '-'}:
-     is_valid = True
-  elif action_value.isnumeric() and WYZE_BULB_COLOR_TEMPERATURE_MIN <= action_value <= WYZE_BULB_COLOR_TEMPERATURE_MAX:
-    is_valid = True
-  else:
-    print(f"{action_value} is not a valid color temperature value\n")
+    print(f"{property_value} is not a valid {property_name} value\n")
 
   return is_valid
 
@@ -173,9 +150,9 @@ def validate_action_value(action_value_type, action_value):
   if action_value_type == None:
     is_valid = True
   elif action_value_type == ACTION_VALUE_TYPE_BRIGHTNESS:
-    is_valid = validate_bulb_brightness(action_value)
+    is_valid = validate_bulb_action_value('brightness'. action_value, WYZE_BULB_BRIGHTNESS_MIN, WYZE_BULB_BRIGHTNESS_MAX)
   elif action_value_type == ACTION_VALUE_TYPE_COLOR_TEMPERATURE:
-    is_valid = validate_bulb_color_temperature(action_value)
+    is_valid = validate_bulb_action_value('color temperature'. action_value, WYZE_BULB_COLOR_TEMPERATURE_MIN, WYZE_BULB_COLOR_TEMPERATURE_MAX)
   else:
     print(f"{action_value_type} is an invalid action value type\n")
 
@@ -218,21 +195,55 @@ def validate_parameters(device_type, action, action_value):
 
 
 """
+  Plug actions
+"""
+def plug_action_off(plug):
+  client.plugs.turn_off(device_mac=plug.mac, device_model=plug.product.model)
+def plug_action_on(plug):
+  client.plugs.turn_on(device_mac=plug.mac, device_model=plug.product.model)
+
+
+"""
   Perform an action on a plug
 
   Inputs:
     * The device's MAC address
     * The action to perform on the device
+    * The action value- is None and unused for plugs
 
   Outputs:
     * Turns the plug on or off
 """
-def plug_action(device_mac, action):
+def plug_action(device_mac, action, action_value):
   plug = client.plugs.info(device_mac=device_mac)
-  if action == ACTION_OFF:
-    client.plugs.turn_off(device_mac=plug.mac, device_model=plug.product.model)
-  elif action == ACTION_ON:
-    client.plugs.turn_on(device_mac=plug.mac, device_model=plug.product.model)
+  plug_actions = {
+    ACTION_OFF:  plug_action_off,
+    ACTION_ON:   plug_action_on
+  }
+  plug_actions[action](plug)
+
+
+"""
+  Bulb actions
+"""
+def bulb_action_on(bulb):
+  client.bulbs.turn_off(device_mac=bulb.mac, device_model=bulb.product.model)
+def bulb_action_off(bulb):
+  client.bulbs.turn_on(device_mac=bulb.mac, device_model=bulb.product.model)
+def bulb_action_brightness(bulb, action_value):
+  client.bulbs.set_brightness(
+    device_mac=bulb.mac, 
+    device_model=bulb.product.model, 
+    brightness=max(bulb.brightness + WYZE_BULB_BRIGHTNESS_INTERVAL, 
+                   WYZE_BULB_BRIGHTNESS_MAX) if action_value == "+"
+               else min(bulb.brightness - WYZE_BULB_BRIGHTNESS_INTERVAL, WYZE_BULB_BRIGHTNESS_MIN))
+def bulb_action_color_temperature(bulb, action_value):
+  client.bulbs.set_color_temp(
+    device_mac=bulb.mac, 
+    device_model=bulb.product.model, 
+    color_temp=max(bulb.color_temp + WYZE_BULB_COLOR_TEMPERATURE_INTERVAL,
+                   WYZE_BULB_COLOR_TEMPERATURE_MAX) if action_value == "+"
+               else min(bulb.color_temp - WYZE_BULB_COLOR_TEMPERATURE_INTERVAL, WYZE_BULB_COLOR_TEMPERATURE_MIN))
 
 
 """
@@ -252,24 +263,13 @@ def plug_action(device_mac, action):
 """
 def bulb_action(device_mac, action, action_value):
   bulb = client.bulbs.info(device_mac=device_mac)
-  if action == ACTION_OFF:
-    client.bulbs.turn_off(device_mac=bulb.mac, device_model=bulb.product.model)
-  elif action == ACTION_ON:
-    client.bulbs.turn_on(device_mac=bulb.mac, device_model=bulb.product.model)
-  elif action == ACTION_BRIGHTNESS:
-    client.bulbs.set_brightness(
-      device_mac=bulb.mac, 
-      device_model=bulb.product.model, 
-      brightness=max(bulb.brightness + WYZE_BULB_BRIGHTNESS_INTERVAL, 
-                     WYZE_BULB_BRIGHTNESS_MAX) if action_value == "+"
-                 else min(bulb.brightness - WYZE_BULB_BRIGHTNESS_INTERVAL, WYZE_BULB_BRIGHTNESS_MIN))
-  elif action == ACTION_COLOR_TEMPERATURE:
-    client.bulbs.set_color_temp(
-      device_mac=bulb.mac, 
-      device_model=bulb.product.model, 
-      color_temp=max(bulb.color_temp + WYZE_BULB_COLOR_TEMPERATURE_INTERVAL,
-                     WYZE_BULB_COLOR_TEMPERATURE_MAX) if action_value == "+"
-                 else min(bulb.color_temp - WYZE_BULB_COLOR_TEMPERATURE_INTERVAL, WYZE_BULB_COLOR_TEMPERATURE_MIN))
+  bulb_actions = {
+    ACTION_OFF:               bulb_action_off,
+    ACTION_ON:                bulb_action_on,
+    ACTION_BRIGHTNESS:        bulb_action_brightness,
+    ACTION_COLOR_TEMPERATURE: bulb_action_color_temperature
+  }
+  bulb_actions[action](bulb, action_value)
 
 
 """
@@ -313,10 +313,11 @@ try:
     display_help()
   else:
     client = create_wyze_client()
-    if device_type == DEVICE_TYPE_PLUG:
-      plug_action(device_mac, action)
-    elif device_type == DEVICE_TYPE_BULB:
-      bulb_action(device_mac, action, action_value)
+    actions = {
+      DEVICE_TYPE_PLUG: plug_action,
+      DEVICE_TYPE_BULB: bulb_action
+    }
+    actions[device_type](device_mac, action, action_value)
 
 except WyzeApiError as e:
     # You will get a WyzeApiError if the request failed
