@@ -64,13 +64,10 @@ WYZE_BULB_COLOR_TEMPERATURE_INTERVAL = (WYZE_BULB_COLOR_TEMPERATURE_MAX - WYZE_B
 def create_wyze_client():
   client = ""
   if path.exists(WYZE_CLIENT_FILENAME):
-    new_file = open(WYZE_CLIENT_FILENAME, 'rb')
-    client = pickle.load(new_file)
+    client = pickle.load(open(WYZE_CLIENT_FILENAME, 'rb'))
   else:
     client = Client(email=os.environ.get('WYZE_EMAIL'), password=os.environ.get('WYZE_PASSWORD'))
-    file = open(WYZE_CLIENT_FILENAME, 'wb')
-    pickle.dump(client, file)
-    file.close()
+    pickle.dump(client, open(WYZE_CLIENT_FILENAME, 'wb'))
   return client
 
 
@@ -93,7 +90,7 @@ def create_wyze_client():
 def parse_parameters(params):
   device_name = params[1].lower() if len(params) > 1 else None
   action = params[2].lower() if len(params) > 2 else None
-  action_value = params[3].lower() if len(params) > 3 else None
+  action_value = params[3] if len(params) > 3 else None
 
   if device_name:
     device_env_variable = f"WYZE_DEVICE_{device_name.upper()}"
@@ -111,6 +108,9 @@ def parse_parameters(params):
 
 """
   Validate the requested bulb property
+    * Must be either 
+        - numeric and between a min and max value
+        - +/- to increase/decrease by a percentage
 
   Inputs:
     * property_name is the name of the property
@@ -126,11 +126,11 @@ def validate_bulb_action_value(property_name, property_value, min_value, max_val
     print(f"action-value is a required field\n")
   elif property_value in {'+', '-'}:
      is_valid = True
-  elif property_value.isnumeric() and min_value <= property_value <= max_value:
+  elif property_value.isnumeric() and min_value <= int(property_value) <= max_value:
     is_valid = True
   else:
     print(f"{property_value} is not a valid {property_name} value\n")
-
+  
   return is_valid
 
 
@@ -146,16 +146,16 @@ def validate_bulb_action_value(property_name, property_value, min_value, max_val
 """
 def validate_action_value(action_value_type, action_value):
   is_valid = False
-
+  
   if action_value_type == None:
     is_valid = True
   elif action_value_type == ACTION_VALUE_TYPE_BRIGHTNESS:
-    is_valid = validate_bulb_action_value('brightness'. action_value, WYZE_BULB_BRIGHTNESS_MIN, WYZE_BULB_BRIGHTNESS_MAX)
+    is_valid = validate_bulb_action_value('brightness', action_value, WYZE_BULB_BRIGHTNESS_MIN, WYZE_BULB_BRIGHTNESS_MAX)
   elif action_value_type == ACTION_VALUE_TYPE_COLOR_TEMPERATURE:
-    is_valid = validate_bulb_action_value('color temperature'. action_value, WYZE_BULB_COLOR_TEMPERATURE_MIN, WYZE_BULB_COLOR_TEMPERATURE_MAX)
+    is_valid = validate_bulb_action_value('color temperature', action_value, WYZE_BULB_COLOR_TEMPERATURE_MIN, WYZE_BULB_COLOR_TEMPERATURE_MAX)
   else:
     print(f"{action_value_type} is an invalid action value type\n")
-
+  
   return is_valid
 
 
