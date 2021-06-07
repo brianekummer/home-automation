@@ -45,18 +45,18 @@ ACTION_COLOR_TEMPERATURE = 'temp'
 ACTION_VALUE_TYPE_BRIGHTNESS = 'brightness'
 ACTION_VALUE_TYPE_COLOR_TEMPERATURE = 'color-temperature'
 
-WYZE_BULB_BRIGHTNESS_MIN = 0
+WYZE_BULB_BRIGHTNESS_MIN = 1
 WYZE_BULB_BRIGHTNESS_MAX = 100
-WYZE_BULB_BRIGHTNESS_INTERVAL = (WYZE_BULB_BRIGHTNESS_MAX - WYZE_BULB_BRIGHTNESS_MIN)/10
+WYZE_BULB_BRIGHTNESS_INTERVAL = (WYZE_BULB_BRIGHTNESS_MAX - WYZE_BULB_BRIGHTNESS_MIN)/5
 WYZE_BULB_COLOR_TEMPERATURE_MIN = 2700
 WYZE_BULB_COLOR_TEMPERATURE_MAX = 6500
-WYZE_BULB_COLOR_TEMPERATURE_INTERVAL = (WYZE_BULB_COLOR_TEMPERATURE_MAX - WYZE_BULB_COLOR_TEMPERATURE_MIN)/10
+WYZE_BULB_COLOR_TEMPERATURE_INTERVAL = (WYZE_BULB_COLOR_TEMPERATURE_MAX - WYZE_BULB_COLOR_TEMPERATURE_MIN)/5
 
 
 
 """
   Create the Wyze authenticated client. Read it from cache
-  if it exists.
+  if it exists. If we get an error that the token expired
 
   Returns:
     * The authenticated client
@@ -226,24 +226,24 @@ def plug_action(device_mac, action, action_value):
 """
   Bulb actions
 """
-def bulb_action_on(bulb):
-  client.bulbs.turn_off(device_mac=bulb.mac, device_model=bulb.product.model)
-def bulb_action_off(bulb):
+def bulb_action_on(bulb, action_value):
   client.bulbs.turn_on(device_mac=bulb.mac, device_model=bulb.product.model)
+def bulb_action_off(bulb, action_value):
+  client.bulbs.turn_off(device_mac=bulb.mac, device_model=bulb.product.model)
 def bulb_action_brightness(bulb, action_value):
-  client.bulbs.set_brightness(
-    device_mac=bulb.mac, 
-    device_model=bulb.product.model, 
-    brightness=max(bulb.brightness + WYZE_BULB_BRIGHTNESS_INTERVAL, 
-                   WYZE_BULB_BRIGHTNESS_MAX) if action_value == "+"
-               else min(bulb.brightness - WYZE_BULB_BRIGHTNESS_INTERVAL, WYZE_BULB_BRIGHTNESS_MIN))
+  brightness = {
+    '+': min(bulb.brightness + WYZE_BULB_BRIGHTNESS_INTERVAL, WYZE_BULB_BRIGHTNESS_MAX),
+    '-': max(bulb.brightness - WYZE_BULB_BRIGHTNESS_INTERVAL, WYZE_BULB_BRIGHTNESS_MIN)
+  }
+  new_brightness = int(brightness.get(action_value, action_value))
+  client.bulbs.set_brightness(device_mac=bulb.mac, device_model=bulb.product.model, brightness=new_brightness)
 def bulb_action_color_temperature(bulb, action_value):
-  client.bulbs.set_color_temp(
-    device_mac=bulb.mac, 
-    device_model=bulb.product.model, 
-    color_temp=max(bulb.color_temp + WYZE_BULB_COLOR_TEMPERATURE_INTERVAL,
-                   WYZE_BULB_COLOR_TEMPERATURE_MAX) if action_value == "+"
-               else min(bulb.color_temp - WYZE_BULB_COLOR_TEMPERATURE_INTERVAL, WYZE_BULB_COLOR_TEMPERATURE_MIN))
+  color_temperature = {
+    '+': min(bulb.color_temp + WYZE_BULB_COLOR_TEMPERATURE_INTERVAL, WYZE_BULB_COLOR_TEMPERATURE_MAX),
+    '-': max(bulb.color_temp - WYZE_BULB_COLOR_TEMPERATURE_INTERVAL, WYZE_BULB_COLOR_TEMPERATURE_MIN),
+  }
+  new_color_temperature = int(color_temperature.get(action_value, action_value))
+  client.bulbs.set_color_temp(device_mac=bulb.mac, device_model=bulb.product.model, color_temp=new_color_temperature)
 
 
 """
@@ -301,24 +301,33 @@ def display_help():
   print('  wyze.py desklite temp 3800')
 
 
+def do_it(device_type, device_mac, action, action_value):
+  actions = {
+    DEVICE_TYPE_PLUG: plug_action,
+    DEVICE_TYPE_BULB: bulb_action
+  }
+  actions[device_type](device_mac, action, action_value)
+
+  
+
 """
   Main body 
 """
-try:
-  is_valid = False
-  device_type, device_mac, action, action_value = parse_parameters(sys.argv)
-  is_valid = validate_parameters(device_type, action, action_value)
+is_valid = False
+device_type, device_mac, action, action_value = parse_parameters(sys.argv)
+is_valid = validate_parameters(device_type, action, action_value)
 
-  if not is_valid:
-    display_help()
-  else:
+if not is_valid:
+  display_help()
+else:
+  try:
     client = create_wyze_client()
-    actions = {
-      DEVICE_TYPE_PLUG: plug_action,
-      DEVICE_TYPE_BULB: bulb_action
-    }
-    actions[device_type](device_mac, action, action_value)
+    do_it(device_type, device_mac, action, action_value)
 
-except WyzeApiError as e:
-    # You will get a WyzeApiError if the request failed
-    print(f"Got an error: {e}")
+  except WyzeApiError as e:
+    if 'The access token has expired' in e.args[0]:
+      os.remove(WYZE_CLIENT_FILENAME)
+      client = create_wyze_client()
+      do_it(device_type, device_mac, action, action_value)
+    else:
+      print(f"Got an error: {e}")
