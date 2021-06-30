@@ -16,7 +16,7 @@
         - Each device needs to have an environment variable (set in 
           ~/.env) with its type and MAC address, like these:
             WYZE_DEVICE_FAN="plug|ABABABABABAB"
-            WYZE_DEVICE_AC="plug|121212121212"
+            WYZE_DEVICE_LITE="bulb|121212121212"
 
   Notes:
     * Authenticating every time I call this script is unnecessarily slow,
@@ -32,12 +32,13 @@ import threading
 from wyze_sdk import Client
 from wyze_sdk.errors import WyzeApiError
 from os import path
+from os import environ
 
 WYZE_CLIENT_FILENAME = 'wyze_client.txt'
 
 DEVICE_NAME = 'device_name'
 DEVICE_TYPE = 'device_type'
-DEVICE_MAC = 'device_mac'
+DEVICE_MAC  = 'device_mac'
 
 DEVICE_TYPE_PLUG = 'plug'
 DEVICE_TYPE_BULB = 'bulb'
@@ -70,13 +71,22 @@ def create_wyze_client():
   if path.exists(WYZE_CLIENT_FILENAME):
     client = pickle.load(open(WYZE_CLIENT_FILENAME, 'rb'))
   else:
-    client = Client(email=os.environ.get('WYZE_EMAIL'), password=os.environ.get('WYZE_PASSWORD'))
+    client = Client(email=environ.get('WYZE_EMAIL'), password=environ.get('WYZE_PASSWORD'))
     pickle.dump(client, open(WYZE_CLIENT_FILENAME, 'wb'))
   return client
 
 
 """
-  Convert any aliases
+  Convert any aliases for action and action_value into the standard
+  values.
+
+  Inputs:
+    * The action (on|off|bright|temp|warm|cool)
+    * The action_value (brightness, color temperature)
+
+  Returns:
+    * The action
+    * The action_value
 """
 def convert_aliases(action, action_value):
   action_aliases = {
@@ -101,9 +111,10 @@ def convert_aliases(action, action_value):
 
 
 """
-  Parse the script's parameters into a device_type, device_mac, action,
-  and action_value. The device's name is used to find the environment
-  variable that contains the device's type and MAC address.
+  Parse the script's parameters into a list of devices (which contains the
+  device_name, device_type, and device_mac), action, and action_value. 
+  The device's name is used to find the environment variable that contains
+  the device's type and MAC address.
 
   Inputs:
     * Parameters passed into the script
@@ -111,8 +122,10 @@ def convert_aliases(action, action_value):
       the device type and MAC address for the device
 
   Returns:
-    * The device's type (plug|bulb)
-    * The device's MAC address
+    * The list of devices
+       - The device's name
+       - The device's type (plug|bulb)
+       - The device's MAC address
     * The action (on|off|bright|temp|warm|cool)
     * The action_value (brightness, color temperature)
 """
@@ -127,13 +140,14 @@ def parse_parameters(params):
     devices = []
     for device_name in device_names.split(','):
       device_env_variable = f"WYZE_DEVICE_{device_name.upper()}"
-      device_info = os.environ.get(device_env_variable)
+      device_info = environ.get(device_env_variable)
       if device_info:
         device_parts = device_info.split('|')
         devices.append({
           DEVICE_NAME: device_name, 
           DEVICE_TYPE: device_parts[0], 
-          DEVICE_MAC:  device_parts[1] })  
+          DEVICE_MAC:  device_parts[1]
+        })  
       else:
         print(f"Device {device_name} isn't defined- set environment variable {device_env_variable}\n")
         return None, None, None
@@ -200,9 +214,18 @@ def validate_action_value(action_value_type, action_value):
 
 
 """
-  TODO- Add documentation
+  Validate the parameters for a single device
+
+  Inputs:
+    * The device's name
+    # The device's type
+    * The action
+    * The action's value
+
+  Returns:
+    * Is it valid?
 """
-def validate_device_actions(device_name, device_type, action, action_value):
+def validate_parameters_for_device(device_name, device_type, action, action_value):
   validations = {
     DEVICE_TYPE_PLUG: { ACTION_ON:                     None,
                         ACTION_OFF:                    None }, 
@@ -229,20 +252,22 @@ def validate_device_actions(device_name, device_type, action, action_value):
 
 
 """
-  TODO- Update this documentation
-  Validate the parameters. Ensures that we don't try to set the brightness
-  on a smart plug.
+  Validate the parameters for all the devices, to ensure that we don't try to
+  set the brightness on a smart plug.
 
   Inputs:
-    * The device's type
+    * The list of devices (with name, type, and MAC)
     * The action
     * The action's value
+
+  Returns:
+    * Is it valid?
 """
 def validate_parameters(devices, action, action_value):
   is_valid = False
   if devices != None:
     for device in devices:
-      is_valid = validate_device_actions(device[DEVICE_NAME], device[DEVICE_TYPE], action, action_value)
+      is_valid = validate_parameters_for_device(device[DEVICE_NAME], device[DEVICE_TYPE], action, action_value)
       if not is_valid: break
 
   return is_valid
@@ -330,10 +355,9 @@ def bulb_action(device_mac, action, action_value):
   Display the help
 """
 def display_help():
-  # TODO- UPdate examples with multiple devices
   print('Syntax:')
   print(f"  wyze.py <device-names> <action> <action-value>")
-  print(f"    <device-names>:    comma separated list of one or more devices (i.e. fan|ac|lite|etc)")
+  print(f"    <device-names>:   comma-separated-list of one or more devices (i.e. fan|ac|lite|etc)")
   print(f"")
   print(f"    For plugs:")
   print(f"      <action>:       {ACTION_ON}|{ACTION_OFF}")
@@ -349,25 +373,49 @@ def display_help():
   print(f"")
   print(f"Examples:")
   print(f"  wyze.py fan on")
-  print(f"  wyze.py ac off")
+  print(f"  wyze.py fan,ac off")
   print(f"  wyze.py litetop on")
   print(f"  wyze.py litetop bright 25")
   print(f"  wyze.py litetop bright +")
   print(f"  wyze.py litetop temp 3800")
   print(f"  wyze.py litetop,litebottom off")
   print(f"")
-  print("Aliases:")
-  print("  wyze.py litetop warm             =>  litetop temp 3000")
-  print("  wyze.py litetop cool             =>  litetop temp 6500")
-  print("  wyze.py litetop,litebottom warm  =>  litetop,litebottom temp 3000")
+  print(f"Aliases for various actions:")
+  print(f"  n              =>  {ACTION_ON}")
+  print(f"  f              =>  {ACTION_OFF}")
+  print(f"  b/brightness   =>  {ACTION_BRIGHTNESS}")
+  print(f"  t/temperature  =>  {ACTION_COLOR_TEMPERATURE}")
+  print(f"  warm           =>  {ACTION_COLOR_TEMPERATURE} 3000")
+  print(f"  cool           =>  {ACTION_COLOR_TEMPERATURE} 6500")
 
-def do_it(device_type, device_mac, action, action_value):
+
+"""
+  Execute the actions for each device, each on their own thread so that they
+  can run in parallel.
+
+  Inputs:
+    * The list of devices
+       - The device's name
+       - The device's type (plug|bulb)
+       - The device's MAC address
+    * The action (on|off|bright|temp|warm|cool)
+    * The action_value (brightness, color temperature)
+"""
+def execute_actions(devices, action, action_value):
   actions = {
     DEVICE_TYPE_PLUG: plug_action,
     DEVICE_TYPE_BULB: bulb_action
   }
-  actions[device_type](device_mac, action, action_value)
 
+  thread_list = []
+  for device in devices:
+    thread = threading.Thread(target=actions[device[DEVICE_TYPE]], args=(device[DEVICE_MAC], action, action_value))
+    thread_list.append(thread)
+    thread.start()
+  
+  # Wait for all the threads to finish
+  for thread in thread_list:
+    thread.join()
   
 
 """
@@ -381,22 +429,12 @@ if not validate_parameters(devices, action, action_value):
 else:
   try:
     client = create_wyze_client()
-    
-    # Run command for each device on its own thread so they're done in parallel
-    thread_list = []
-    for device in devices:
-      thread = threading.Thread(target=do_it, args=(device[DEVICE_TYPE], device[DEVICE_MAC], action, action_value))
-      thread_list.append(thread)
-      thread.start()
-    
-    # Wait for all my threads to end
-    for thread in thread_list:
-      thread.join()
+    execute_actions(devices, action, action_value)
 
   except WyzeApiError as e:
     if 'The access token has expired' in e.args[0]:
       os.remove(WYZE_CLIENT_FILENAME)
       client = create_wyze_client()
-      do_it(device_type, device_mac, action, action_value)
+      execute_actions(devices, action, action_value)
     else:
       print(f"Got an error: {e}")
