@@ -34,6 +34,10 @@ from os import path
 
 WYZE_CLIENT_FILENAME = 'wyze_client.txt'
 
+DEVICE_NAME = 'device_name'
+DEVICE_TYPE = 'device_type'
+DEVICE_MAC = 'device_mac'
+
 DEVICE_TYPE_PLUG = 'plug'
 DEVICE_TYPE_BULB = 'bulb'
 
@@ -112,24 +116,33 @@ def convert_aliases(action, action_value):
     * The action_value (brightness, color temperature)
 """
 def parse_parameters(params):
-  device_name = params[1].lower() if len(params) > 1 else None
+  device_names = params[1].lower() if len(params) > 1 else None
   action = params[2].lower() if len(params) > 2 else None
   action_value = params[3] if len(params) > 3 else None
 
   action, action_value = convert_aliases(action, action_value)
 
-  if device_name:
-    device_env_variable = f"WYZE_DEVICE_{device_name.upper()}"
-    device_info = os.environ.get(device_env_variable)
-    if device_info:
-      device_parts = device_info.split('|')
-      return device_parts[0], device_parts[1], action, action_value
-    else:
-      print(f"Device {device_name} isn't defined- set environment variable {device_env_variable}\n")
-  else:
-    print(f"device-name is a required field\n")
+  if device_names:
+    devices = []
+    for device_name in device_names.split(','):
+      device_env_variable = f"WYZE_DEVICE_{device_name.upper()}"
+      device_info = os.environ.get(device_env_variable)
+      if device_info:
+        device_parts = device_info.split('|')
+        devices.append({
+          DEVICE_NAME: device_name, 
+          DEVICE_TYPE: device_parts[0], 
+          DEVICE_MAC:  device_parts[1] })  
+      else:
+        print(f"Device {device_name} isn't defined- set environment variable {device_env_variable}\n")
+        return None, None, None
+      
+    return devices, action, action_value
 
-  return None, None, None, None
+  else:
+    print(f"device-names is a required field\n")
+
+  return None, None, None
 
 
 """
@@ -186,15 +199,9 @@ def validate_action_value(action_value_type, action_value):
 
 
 """
-  Validate the parameters. Ensures that we don't try to set the brightness
-  on a smart plug.
-
-  Inputs:
-    * The device's type
-    * The action
-    * The action's value
+  TODO- Add documentation
 """
-def validate_parameters(device_type, action, action_value):
+def validate_device_actions(device_name, device_type, action, action_value):
   validations = {
     DEVICE_TYPE_PLUG: { ACTION_ON:                     None,
                         ACTION_OFF:                    None }, 
@@ -213,9 +220,28 @@ def validate_parameters(device_type, action, action_value):
       if action == None:
         print('action is a required field\n')
       else:
-        print(f"{action} is not a valid action\n")
-  elif device_type != None:
+        print(f"{action} is not a valid action for {device_name}\n")
+  else:
     print(f"{device_type} is not a valid device type\n")
+
+  return is_valid
+
+
+"""
+  TODO- Update this documentation
+  Validate the parameters. Ensures that we don't try to set the brightness
+  on a smart plug.
+
+  Inputs:
+    * The device's type
+    * The action
+    * The action's value
+"""
+def validate_parameters(devices, action, action_value):
+  is_valid = False
+  for device in devices:
+    is_valid = validate_device_actions(device[DEVICE_NAME], device[DEVICE_TYPE], action, action_value)
+    if not is_valid: break
 
   return is_valid
 
@@ -302,6 +328,7 @@ def bulb_action(device_mac, action, action_value):
   Display the help
 """
 def display_help():
+  # TODO- UPdate examples with multiple devices
   print('Syntax:')
   print(f"  wyze.py <device-name> <action> <action-value>")
   print(f"    <device-name>:    fan|ac|desklite")
@@ -343,15 +370,16 @@ def do_it(device_type, device_mac, action, action_value):
   Main body 
 """
 is_valid = False
-device_type, device_mac, action, action_value = parse_parameters(sys.argv)
-is_valid = validate_parameters(device_type, action, action_value)
+devices, action, action_value = parse_parameters(sys.argv)
+is_valid = validate_parameters(devices, action, action_value)
 
 if not is_valid:
   display_help()
 else:
   try:
     client = create_wyze_client()
-    do_it(device_type, device_mac, action, action_value)
+    for device in devices:
+      do_it(device[DEVICE_TYPE], device[DEVICE_MAC], action, action_value)
 
   except WyzeApiError as e:
     if 'The access token has expired' in e.args[0]:
