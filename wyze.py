@@ -4,7 +4,7 @@
   Uses this unofficial API: https://pypi.org/project/wyze-sdk/
 
   Syntax:
-    wyze.py <device-name> <action> <action-value>
+    wyze.py <device-names> <action> <action-value>
       (see main body for details and examples)
 
   Assumptions:
@@ -28,6 +28,7 @@
 import sys
 import os
 import pickle
+import threading
 from wyze_sdk import Client
 from wyze_sdk.errors import WyzeApiError
 from os import path
@@ -91,7 +92,7 @@ def convert_aliases(action, action_value):
     'cool':        ACTION_COLOR_TEMPERATURE + '|6500'
   }
   action = action_aliases.get(action, action)
-  if "|" in action:
+  if action != None and "|" in action:
     action_and_value = action.split("|")
     action = action_and_value[0]
     action_value = action_and_value[1]
@@ -122,7 +123,7 @@ def parse_parameters(params):
 
   action, action_value = convert_aliases(action, action_value)
 
-  if device_names:
+  if device_names != None:
     devices = []
     for device_name in device_names.split(','):
       device_env_variable = f"WYZE_DEVICE_{device_name.upper()}"
@@ -239,9 +240,10 @@ def validate_device_actions(device_name, device_type, action, action_value):
 """
 def validate_parameters(devices, action, action_value):
   is_valid = False
-  for device in devices:
-    is_valid = validate_device_actions(device[DEVICE_NAME], device[DEVICE_TYPE], action, action_value)
-    if not is_valid: break
+  if devices != None:
+    for device in devices:
+      is_valid = validate_device_actions(device[DEVICE_NAME], device[DEVICE_TYPE], action, action_value)
+      if not is_valid: break
 
   return is_valid
 
@@ -330,8 +332,8 @@ def bulb_action(device_mac, action, action_value):
 def display_help():
   # TODO- UPdate examples with multiple devices
   print('Syntax:')
-  print(f"  wyze.py <device-name> <action> <action-value>")
-  print(f"    <device-name>:    fan|ac|desklite")
+  print(f"  wyze.py <device-names> <action> <action-value>")
+  print(f"    <device-names>:    comma separated list of one or more devices (i.e. fan|ac|lite|etc)")
   print(f"")
   print(f"    For plugs:")
   print(f"      <action>:       {ACTION_ON}|{ACTION_OFF}")
@@ -345,17 +347,19 @@ def display_help():
   print(f"                        a number between {WYZE_BULB_COLOR_TEMPERATURE_MIN} and {WYZE_BULB_COLOR_TEMPERATURE_MAX}")
   print(f"                        or +|- to increase/decrease color temperature by 10%")
   print(f"")
-  print('Examples:')
-  print('  wyze.py fan on')
-  print('  wyze.py ac off')
-  print('  wyze.py litetop on')
-  print('  wyze.py litetop bright 25')
-  print('  wyze.py litetop bright +')
-  print('  wyze.py litetop temp 3800')
-  print('Aliases:')
-  print('  wyze.py litetop warm  =>  litetop temp 3000')
-  print('  wyze.py litetop cool  =>  litetop temp 6500')
-
+  print(f"Examples:")
+  print(f"  wyze.py fan on")
+  print(f"  wyze.py ac off")
+  print(f"  wyze.py litetop on")
+  print(f"  wyze.py litetop bright 25")
+  print(f"  wyze.py litetop bright +")
+  print(f"  wyze.py litetop temp 3800")
+  print(f"  wyze.py litetop,litebottom off")
+  print(f"")
+  print("Aliases:")
+  print("  wyze.py litetop warm             =>  litetop temp 3000")
+  print("  wyze.py litetop cool             =>  litetop temp 6500")
+  print("  wyze.py litetop,litebottom warm  =>  litetop,litebottom temp 3000")
 
 def do_it(device_type, device_mac, action, action_value):
   actions = {
@@ -371,15 +375,23 @@ def do_it(device_type, device_mac, action, action_value):
 """
 is_valid = False
 devices, action, action_value = parse_parameters(sys.argv)
-is_valid = validate_parameters(devices, action, action_value)
 
-if not is_valid:
+if not validate_parameters(devices, action, action_value):
   display_help()
 else:
   try:
     client = create_wyze_client()
+    
+    # Run command for each device on its own thread so they're done in parallel
+    thread_list = []
     for device in devices:
-      do_it(device[DEVICE_TYPE], device[DEVICE_MAC], action, action_value)
+      thread = threading.Thread(target=do_it, args=(device[DEVICE_TYPE], device[DEVICE_MAC], action, action_value))
+      thread_list.append(thread)
+      thread.start()
+    
+    # Wait for all my threads to end
+    for thread in thread_list:
+      thread.join()
 
   except WyzeApiError as e:
     if 'The access token has expired' in e.args[0]:
