@@ -53,7 +53,6 @@ WYZE_BULB_COLOR_TEMPERATURE_MAX = 6500
 WYZE_BULB_COLOR_TEMPERATURE_INTERVAL = (WYZE_BULB_COLOR_TEMPERATURE_MAX - WYZE_BULB_COLOR_TEMPERATURE_MIN)/5
 
 
-
 """
   Create the Wyze authenticated client. Read it from cache
   if it exists. If we get an error that the token expired
@@ -72,6 +71,31 @@ def create_wyze_client():
 
 
 """
+  Convert any aliases
+"""
+def convert_aliases(action, action_value):
+  action_aliases = {
+    'n':           ACTION_ON,
+    'f':           ACTION_OFF,
+
+    'brightness':  ACTION_BRIGHTNESS,
+    'b':           ACTION_BRIGHTNESS,
+
+    'temperature': ACTION_COLOR_TEMPERATURE,
+    't':           ACTION_COLOR_TEMPERATURE,
+    'warm':        ACTION_COLOR_TEMPERATURE + '|3000',
+    'cool':        ACTION_COLOR_TEMPERATURE + '|6500'
+  }
+  action = action_aliases.get(action, action)
+  if "|" in action:
+    action_and_value = action.split("|")
+    action = action_and_value[0]
+    action_value = action_and_value[1]
+  
+  return action, action_value
+
+
+"""
   Parse the script's parameters into a device_type, device_mac, action,
   and action_value. The device's name is used to find the environment
   variable that contains the device's type and MAC address.
@@ -84,13 +108,15 @@ def create_wyze_client():
   Returns:
     * The device's type (plug|bulb)
     * The device's MAC address
-    * The action (on|off|bright|temp)
+    * The action (on|off|bright|temp|warm|cool)
     * The action_value (brightness, color temperature)
 """
 def parse_parameters(params):
   device_name = params[1].lower() if len(params) > 1 else None
   action = params[2].lower() if len(params) > 2 else None
   action_value = params[3] if len(params) > 3 else None
+
+  action, action_value = convert_aliases(action, action_value)
 
   if device_name:
     device_env_variable = f"WYZE_DEVICE_{device_name.upper()}"
@@ -170,12 +196,12 @@ def validate_action_value(action_value_type, action_value):
 """
 def validate_parameters(device_type, action, action_value):
   validations = {
-    DEVICE_TYPE_PLUG: { ACTION_ON:                None,
-                        ACTION_OFF:               None }, 
-    DEVICE_TYPE_BULB: { ACTION_ON:                None,
-                        ACTION_OFF:               None,
-                        ACTION_BRIGHTNESS:        ACTION_VALUE_TYPE_BRIGHTNESS,
-                        ACTION_COLOR_TEMPERATURE: ACTION_VALUE_TYPE_COLOR_TEMPERATURE }
+    DEVICE_TYPE_PLUG: { ACTION_ON:                     None,
+                        ACTION_OFF:                    None }, 
+    DEVICE_TYPE_BULB: { ACTION_ON:                     None,
+                        ACTION_OFF:                    None,
+                        ACTION_BRIGHTNESS:             ACTION_VALUE_TYPE_BRIGHTNESS,
+                        ACTION_COLOR_TEMPERATURE:      ACTION_VALUE_TYPE_COLOR_TEMPERATURE }
   }
 
   is_valid = False
@@ -264,10 +290,10 @@ def bulb_action_color_temperature(bulb, action_value):
 def bulb_action(device_mac, action, action_value):
   bulb = client.bulbs.info(device_mac=device_mac)
   bulb_actions = {
-    ACTION_OFF:               bulb_action_off,
-    ACTION_ON:                bulb_action_on,
-    ACTION_BRIGHTNESS:        bulb_action_brightness,
-    ACTION_COLOR_TEMPERATURE: bulb_action_color_temperature
+    ACTION_OFF:                    bulb_action_off,
+    ACTION_ON:                     bulb_action_on,
+    ACTION_BRIGHTNESS:             bulb_action_brightness,
+    ACTION_COLOR_TEMPERATURE:      bulb_action_color_temperature
   }
   bulb_actions[action](bulb, action_value)
 
@@ -295,10 +321,13 @@ def display_help():
   print('Examples:')
   print('  wyze.py fan on')
   print('  wyze.py ac off')
-  print('  wyze.py desklite on')
-  print('  wyze.py desklite bright 25')
-  print('  wyze.py desklite bright +')
-  print('  wyze.py desklite temp 3800')
+  print('  wyze.py litetop on')
+  print('  wyze.py litetop bright 25')
+  print('  wyze.py litetop bright +')
+  print('  wyze.py litetop temp 3800')
+  print('Aliases:')
+  print('  wyze.py litetop warm  =>  litetop temp 3000')
+  print('  wyze.py litetop cool  =>  litetop temp 6500')
 
 
 def do_it(device_type, device_mac, action, action_value):
