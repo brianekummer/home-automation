@@ -91,7 +91,7 @@ def create_wyze_client():
     except WyzeApiError as e:
       if 'The access token has expired' in e.args[0]:
         client = None
-        log_text += '', EXPIRED, '
+        log_text += ', EXPIRED, '
 
   if client == None:
     log_text += 'CREATED'
