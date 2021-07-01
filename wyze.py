@@ -1,7 +1,9 @@
 """
   Home automation script for Wyze devices
   by Brian Kummer, June 2021
-  Uses this unofficial API: https://pypi.org/project/wyze-sdk/
+  
+  Uses this unofficial API: https://pypi.org/project/wyze-sdk/,
+  which requires Python 3.8 or higher.
 
   Syntax:
     wyze.py <device-names> <action> <action-value>
@@ -17,6 +19,7 @@
           ~/.env) with its type and MAC address, like these:
             WYZE_DEVICE_FAN="plug|ABABABABABAB"
             WYZE_DEVICE_LITE="bulb|121212121212"
+    * Wyz
 
   Notes:
     * Authenticating every time I call this script is unnecessarily slow,
@@ -34,7 +37,16 @@ from wyze_sdk.errors import WyzeApiError
 from os import path
 from os import environ
 
-WYZE_CLIENT_FILENAME = 'wyze_client.txt'
+
+# TODO- REMOVE THESE
+import time
+from datetime import datetime
+
+
+SCRIPT_PATH = os.path.dirname(os.path.realpath(__file__)) + '/'
+
+# Ensure cached credentials are in same folder as this script
+WYZE_CLIENT_FILENAME = SCRIPT_PATH + 'wyze_client.txt'
 
 DEVICE_NAME = 'device_name'
 DEVICE_TYPE = 'device_type'
@@ -60,19 +72,37 @@ WYZE_BULB_COLOR_TEMPERATURE_INTERVAL = (WYZE_BULB_COLOR_TEMPERATURE_MAX - WYZE_B
 
 
 """
-  Create the Wyze authenticated client. Read it from cache
-  if it exists. If we get an error that the token expired
+  Create the Wyze authenticated client, caching it to a file.
 
   Returns:
     * The authenticated client
 """
 def create_wyze_client():
-  client = ""
+  client = None
+  # TODO- Remove logging of time it takes to create this client
+  log_file = open(SCRIPT_PATH + "wyze_login.log", "a")
+  log_text = ""
+  start_time = time.time()
   if path.exists(WYZE_CLIENT_FILENAME):
-    client = pickle.load(open(WYZE_CLIENT_FILENAME, 'rb'))
-  else:
+    try:
+      log_text = 'READ'
+      client = pickle.load(open(WYZE_CLIENT_FILENAME, 'rb'))
+      client.api_test()
+    except WyzeApiError as e:
+      if 'The access token has expired' in e.args[0]:
+        client = None
+        log_text += '', EXPIRED, '
+
+  if client == None:
+    log_text += 'CREATED'
     client = Client(email=environ.get('WYZE_EMAIL'), password=environ.get('WYZE_PASSWORD'))
     pickle.dump(client, open(WYZE_CLIENT_FILENAME, 'wb'))
+
+  end_time = time.time()
+  log_text = datetime.now().strftime("%m/%d/%Y %H:%M:%S") + f"- {round(end_time-start_time, 3)} sec- " + log_text + "\n"
+  log_file.write(log_text)
+  log_file.close()
+
   return client
 
 
@@ -390,23 +420,22 @@ def display_help():
 
 
 """
-  Execute the actions for each device, each on their own thread so that they
-  can run in parallel.
-
-  Inputs:
-    * The list of devices
-       - The device's name
-       - The device's type (plug|bulb)
-       - The device's MAC address
-    * The action (on|off|bright|temp|warm|cool)
-    * The action_value (brightness, color temperature)
+  Main body 
 """
-def execute_actions(devices, action, action_value):
+is_valid = False
+devices, action, action_value = parse_parameters(sys.argv)
+
+if not validate_parameters(devices, action, action_value):
+  display_help()
+else:
+  client = create_wyze_client()
+
   actions = {
     DEVICE_TYPE_PLUG: plug_action,
     DEVICE_TYPE_BULB: bulb_action
   }
 
+  # Run each device's command in a thread so they run in parallel
   thread_list = []
   for device in devices:
     thread = threading.Thread(target=actions[device[DEVICE_TYPE]], args=(device[DEVICE_MAC], action, action_value))
@@ -416,25 +445,3 @@ def execute_actions(devices, action, action_value):
   # Wait for all the threads to finish
   for thread in thread_list:
     thread.join()
-  
-
-"""
-  Main body 
-"""
-is_valid = False
-devices, action, action_value = parse_parameters(sys.argv)
-
-if not validate_parameters(devices, action, action_value):
-  display_help()
-else:
-  try:
-    client = create_wyze_client()
-    execute_actions(devices, action, action_value)
-
-  except WyzeApiError as e:
-    if 'The access token has expired' in e.args[0]:
-      os.remove(WYZE_CLIENT_FILENAME)
-      client = create_wyze_client()
-      execute_actions(devices, action, action_value)
-    else:
-      print(f"Got an error: {e}")

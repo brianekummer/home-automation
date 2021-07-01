@@ -1,2 +1,4 @@
 # wyze_client.txt is my cached credentials to Wyze
 wyze_client.txt
+
+*.log
