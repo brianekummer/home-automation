@@ -68,7 +68,8 @@ WYZE_BULB_BRIGHTNESS_MAX = 100
 WYZE_BULB_BRIGHTNESS_INTERVAL = (WYZE_BULB_BRIGHTNESS_MAX - WYZE_BULB_BRIGHTNESS_MIN)/5
 WYZE_BULB_COLOR_TEMPERATURE_MIN = 2700
 WYZE_BULB_COLOR_TEMPERATURE_MAX = 6500
-WYZE_BULB_COLOR_TEMPERATURE_INTERVAL = (WYZE_BULB_COLOR_TEMPERATURE_MAX - WYZE_BULB_COLOR_TEMPERATURE_MIN)/5
+WYZE_BULB_COLOR_TEMPERATURE_RANGE = WYZE_BULB_COLOR_TEMPERATURE_MAX - WYZE_BULB_COLOR_TEMPERATURE_MIN
+WYZE_BULB_COLOR_TEMPERATURE_INTERVAL = (WYZE_BULB_COLOR_TEMPERATURE_RANGE)/5
 
 
 """
@@ -80,6 +81,7 @@ WYZE_BULB_COLOR_TEMPERATURE_INTERVAL = (WYZE_BULB_COLOR_TEMPERATURE_MAX - WYZE_B
 def create_wyze_client():
   client = None
   # TODO- Remove logging of time it takes to create this client
+  # TODO- Does "api_test()" test validity of auth token??
   log_file = open(SCRIPT_PATH + "wyze_login.log", "a")
   log_text = ""
   start_time = time.time()
@@ -419,29 +421,35 @@ def display_help():
   print(f"  cool           =>  {ACTION_COLOR_TEMPERATURE} 6500")
 
 
+def main(params):
+  global client
+  #print(f">>>>> params={params}")
+  devices, action, action_value = parse_parameters(params)
+
+  if not validate_parameters(devices, action, action_value):
+    display_help()
+  else:
+    client = create_wyze_client()
+
+    actions = {
+      DEVICE_TYPE_PLUG: plug_action,
+      DEVICE_TYPE_BULB: bulb_action
+    }
+
+    # Run each device's command in a thread so they run in parallel
+    thread_list = []
+    for device in devices:
+      thread = threading.Thread(target=actions[device[DEVICE_TYPE]], args=(device[DEVICE_MAC], action, action_value))
+      thread_list.append(thread)
+      thread.start()
+    
+    # Wait for all the threads to finish
+    for thread in thread_list:
+      thread.join()  
+
+
 """
-  Main body 
+  Only run this if running from a script
 """
-is_valid = False
-devices, action, action_value = parse_parameters(sys.argv)
-
-if not validate_parameters(devices, action, action_value):
-  display_help()
-else:
-  client = create_wyze_client()
-
-  actions = {
-    DEVICE_TYPE_PLUG: plug_action,
-    DEVICE_TYPE_BULB: bulb_action
-  }
-
-  # Run each device's command in a thread so they run in parallel
-  thread_list = []
-  for device in devices:
-    thread = threading.Thread(target=actions[device[DEVICE_TYPE]], args=(device[DEVICE_MAC], action, action_value))
-    thread_list.append(thread)
-    thread.start()
-  
-  # Wait for all the threads to finish
-  for thread in thread_list:
-    thread.join()
+if __name__ == "__main__":
+  main(sys.argv)
