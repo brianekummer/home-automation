@@ -1,4 +1,5 @@
-# wyze_client.txt is my cached credentials to Wyze
-wyze_client.txt
+# wyze_client.pickle is my cached Wyze client object
+wyze_client.pickle*
 
 *.log
+__pycache__/

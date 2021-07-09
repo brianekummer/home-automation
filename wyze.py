@@ -46,7 +46,7 @@ from datetime import datetime
 SCRIPT_PATH = os.path.dirname(os.path.realpath(__file__)) + '/'
 
 # Ensure cached credentials are in same folder as this script
-WYZE_CLIENT_FILENAME = SCRIPT_PATH + 'wyze_client.txt'
+WYZE_CLIENT_FILENAME = SCRIPT_PATH + 'wyze_client.pickle'
 
 DEVICE_NAME = 'device_name'
 DEVICE_TYPE = 'device_type'
@@ -79,33 +79,36 @@ WYZE_BULB_COLOR_TEMPERATURE_INTERVAL = (WYZE_BULB_COLOR_TEMPERATURE_RANGE)/5
     * The authenticated client
 """
 def create_wyze_client():
-  client = None
+  new_client = None
   # TODO- Remove logging of time it takes to create this client
-  # TODO- Does "api_test()" test validity of auth token??
   log_file = open(SCRIPT_PATH + "wyze_login.log", "a")
   log_text = ""
   start_time = time.time()
   if path.exists(WYZE_CLIENT_FILENAME):
     try:
       log_text = 'READ'
-      client = pickle.load(open(WYZE_CLIENT_FILENAME, 'rb'))
-      client.api_test()
+      new_client = pickle.load(open(WYZE_CLIENT_FILENAME, 'rb'))
+
+      # api_test() does not require valid credentials, so use
+      # devices_list() to ensure our credentials are valid
+      response = new_client.devices_list()
+      
     except WyzeApiError as e:
       if 'The access token has expired' in e.args[0]:
-        client = None
+        new_client = None
         log_text += ', EXPIRED, '
 
-  if client == None:
+  if new_client == None:
     log_text += 'CREATED'
-    client = Client(email=environ.get('WYZE_EMAIL'), password=environ.get('WYZE_PASSWORD'))
-    pickle.dump(client, open(WYZE_CLIENT_FILENAME, 'wb'))
+    new_client = Client(email=environ.get('WYZE_EMAIL'), password=environ.get('WYZE_PASSWORD'))
+    pickle.dump(new_client, open(WYZE_CLIENT_FILENAME, 'wb'))
 
   end_time = time.time()
   log_text = datetime.now().strftime("%m/%d/%Y %H:%M:%S") + f"- {round(end_time-start_time, 3)} sec- " + log_text + "\n"
   log_file.write(log_text)
   log_file.close()
 
-  return client
+  return new_client
 
 
 """
@@ -309,8 +312,10 @@ def validate_parameters(devices, action, action_value):
   Plug actions
 """
 def plug_action_off(plug):
+  global client
   client.plugs.turn_off(device_mac=plug.mac, device_model=plug.product.model)
 def plug_action_on(plug):
+  global client
   client.plugs.turn_on(device_mac=plug.mac, device_model=plug.product.model)
 
 
@@ -326,6 +331,7 @@ def plug_action_on(plug):
     * Turns the plug on or off
 """
 def plug_action(device_mac, action, action_value):
+  global client
   plug = client.plugs.info(device_mac=device_mac)
   plug_actions = {
     ACTION_OFF:  plug_action_off,
@@ -338,10 +344,13 @@ def plug_action(device_mac, action, action_value):
   Bulb actions
 """
 def bulb_action_on(bulb, action_value):
+  global client
   client.bulbs.turn_on(device_mac=bulb.mac, device_model=bulb.product.model)
 def bulb_action_off(bulb, action_value):
+  global client
   client.bulbs.turn_off(device_mac=bulb.mac, device_model=bulb.product.model)
 def bulb_action_brightness(bulb, action_value):
+  global client
   brightness = {
     '+': min(bulb.brightness + WYZE_BULB_BRIGHTNESS_INTERVAL, WYZE_BULB_BRIGHTNESS_MAX),
     '-': max(bulb.brightness - WYZE_BULB_BRIGHTNESS_INTERVAL, WYZE_BULB_BRIGHTNESS_MIN)
@@ -349,6 +358,7 @@ def bulb_action_brightness(bulb, action_value):
   new_brightness = int(brightness.get(action_value, action_value))
   client.bulbs.set_brightness(device_mac=bulb.mac, device_model=bulb.product.model, brightness=new_brightness)
 def bulb_action_color_temperature(bulb, action_value):
+  global client
   color_temperature = {
     '+': min(bulb.color_temp + WYZE_BULB_COLOR_TEMPERATURE_INTERVAL, WYZE_BULB_COLOR_TEMPERATURE_MAX),
     '-': max(bulb.color_temp - WYZE_BULB_COLOR_TEMPERATURE_INTERVAL, WYZE_BULB_COLOR_TEMPERATURE_MIN),
@@ -373,6 +383,7 @@ def bulb_action_color_temperature(bulb, action_value):
     * Sets the bulb's color temperature
 """
 def bulb_action(device_mac, action, action_value):
+  global client
   bulb = client.bulbs.info(device_mac=device_mac)
   bulb_actions = {
     ACTION_OFF:                    bulb_action_off,
