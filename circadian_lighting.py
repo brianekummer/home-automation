@@ -52,15 +52,21 @@ now = datetime.fromisoformat(params[4]) if len(params) > 4 else datetime.now().a
 sunrise, solar_noon, sunset = get_solar_times_as_local_time(latitude, longitude, now.strftime('%Y-%m-%d'))
 
 new_temperature = None
+TEMP_MORNING_START_COLOR_TEMPERATURE = 4000
 if now < sunrise:
-  new_temperature = wyze.WYZE_BULB_COLOR_TEMPERATURE_MIN
+  #new_temperature = wyze.WYZE_BULB_COLOR_TEMPERATURE_MIN
+  new_temperature = TEMP_MORNING_START_COLOR_TEMPERATURE
   print(f"Before sunrise. Temp={new_temperature}")
 
 elif sunrise < now < solar_noon:
   duration_in_sec = (solar_noon - sunrise).total_seconds()
   sec_since_start = (now - sunrise).total_seconds()
   percentage_thru_duration = sec_since_start/duration_in_sec
-  new_temperature = wyze.WYZE_BULB_COLOR_TEMPERATURE_MIN + round(wyze.WYZE_BULB_COLOR_TEMPERATURE_RANGE * percentage_thru_duration)
+
+  # Seeing how this works- start the day with a much cooler temp
+  #new_temperature = wyze.WYZE_BULB_COLOR_TEMPERATURE_MIN + round(wyze.WYZE_BULB_COLOR_TEMPERATURE_RANGE * percentage_thru_duration)
+  new_temperature = TEMP_MORNING_START_COLOR_TEMPERATURE + round((wyze.WYZE_BULB_COLOR_TEMPERATURE_MAX - TEMP_MORNING_START_COLOR_TEMPERATURE) * percentage_thru_duration)
+  
   print(f"Morning. duration_in_sec={duration_in_sec}, sec_since_start={sec_since_start}, percentage_thru_duration = {percentage_thru_duration}, new_temperature = {new_temperature}")
 
 elif solar_noon < now < sunset:
