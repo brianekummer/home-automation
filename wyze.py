@@ -25,8 +25,16 @@
     * Authenticating every time I call this script is unnecessarily slow,
       so I cache the authenticated client and read it from disk instead of
       regenerating it every time I run this script.
-"""
 
+  TO DO - Changes for Color/Mesh Bulbs
+    * FIX ISSUE SETTING COLOR TEMP WHEN COLOR BULB IS OFF
+        - I can set color temp of white/non-color bulb whil ebulb is off
+        - Doing so with color bulb turns the bulb on
+        - Turning the bulb off after setting the color is too slow- not an option
+    * Model # is WLPA19C instead of WLPA19
+    * Change device type "bulb" to "light" and add "meshlight" to match Wyze device types
+    * Min color temp is 1800 instead of 2700
+"""
 
 import sys
 import os
@@ -364,7 +372,12 @@ def bulb_action_color_temperature(bulb, action_value):
     '-': max(bulb.color_temp - WYZE_BULB_COLOR_TEMPERATURE_INTERVAL, WYZE_BULB_COLOR_TEMPERATURE_MIN),
   }
   new_color_temperature = int(color_temperature.get(action_value, action_value))
-  client.bulbs.set_color_temp(device_mac=bulb.mac, device_model=bulb.product.model, color_temp=new_color_temperature)
+
+  # While we can set the temperature of a (non-color) Light while it is off, doing
+  # the same to a (color) MeshLight turns it on, which I don't want. So we will 
+  # only set the temperature of a MeshLight if it is currently on.
+  if bulb.type == 'Light' or (bulb.type == 'MeshLight' and bulb.is_on):
+    client.bulbs.set_color_temp(device_mac=bulb.mac, device_model=bulb.product.model, color_temp=new_color_temperature)
 
 
 """
@@ -459,8 +472,33 @@ def main(params):
       thread.join()  
 
 
+
+def dump_devices():
+  client = create_wyze_client()
+
+  for device in client.devices_list():
+    print(f"mac: {device.mac}")
+    print(f"nickname: {device.nickname}")
+    print(f"is_online: {device.is_online}")
+    print(f"product model: {device.product.model}")
+    print(f"type: {device.type}")
+    if device.type == "Light" or device.type == "MeshLight":
+      bulb = client.bulbs.info(device_mac=device.mac)
+      print(f"type: {bulb.type}")
+      print(f"away_mode: {bulb.away_mode}")
+      print(f"power_loss_recovery: {bulb.power_loss_recovery}")
+      print(f"switch_state: {bulb.switch_state}")
+      print(f"power: {bulb.is_on}")
+      print(f"brightness: {bulb.brightness}")
+      print(f"temp: {bulb.color_temp}")
+      if device.type == "MeshLight":
+        print(f"color: {bulb.color}")
+    print(f"")
+
+
 """
   Only run this if running from a script
 """
 if __name__ == "__main__":
   main(sys.argv)
+  #dump_devices()
