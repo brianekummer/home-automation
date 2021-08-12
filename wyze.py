@@ -51,7 +51,7 @@ import time
 from datetime import datetime
 
 
-SCRIPT_PATH = os.path.dirname(os.path.realpath(__file__)) + '/'
+SCRIPT_PATH = path.dirname(os.path.realpath(__file__)) + '/'
 
 # Ensure cached credentials are in same folder as this script
 WYZE_CLIENT_FILENAME = SCRIPT_PATH + 'wyze_client.pickle'

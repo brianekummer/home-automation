@@ -1,5 +1,5 @@
-# wyze_client.pickle is my cached Wyze client object
-wyze_client.pickle*
+# I cache info in pickle files
+*.pickle*
 
 *.log
 __pycache__/
