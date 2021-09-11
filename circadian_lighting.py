@@ -20,10 +20,11 @@ import os
 from os import path
 import pickle
 import sys
-import wyze
 import requests
 from datetime import date
 from datetime import datetime
+
+import home_automation
 
 SCRIPT_PATH = path.dirname(path.realpath(__file__)) + '/'
 SUNRISE_SUNSET_CACHE_FILENAME = SCRIPT_PATH + 'sunrise_sunset.pickle'
@@ -113,4 +114,4 @@ elif now > sunset:
   print(f"After sunset. Temp={new_temperature}")
 
 # Call my wyze program to set the temperature
-wyze.main(['wyze.py', device_names, 'temperature', str(new_temperature)])
+home_automation.main(['home_automation.py', device_names, 'temperature', str(new_temperature)])
