@@ -16,27 +16,60 @@
 
 """
 
+import os
+from os import path
+import pickle
 import sys
-import wyze
 import requests
+from datetime import date
 from datetime import datetime
 
+import home_automation
+
+SCRIPT_PATH = path.dirname(path.realpath(__file__)) + '/'
+SUNRISE_SUNSET_CACHE_FILENAME = SCRIPT_PATH + 'sunrise_sunset.pickle'
 
 MY_TIMEZONE = datetime.now().astimezone().tzinfo
 #print(MY_TIMEZONE)
 
 
+def get_sunrise(results): 
+  return datetime.fromisoformat(results['sunrise']).astimezone(MY_TIMEZONE)
+
+def get_solar_noon(results):
+  return datetime.fromisoformat(results['solar_noon']).astimezone(MY_TIMEZONE)
+
+def get_sunset(results):
+  #return datetime.fromisoformat(results['sunset']).astimezone(MY_TIMEZONE)
+  return datetime.fromisoformat(results['civil_twilight_end']).astimezone(MY_TIMEZONE)
+    
+
+
+def get_sunrise_sunset(latitude, longitude, todays_date):
+  results = None
+  if path.exists(SUNRISE_SUNSET_CACHE_FILENAME):
+    results = pickle.load(open(SUNRISE_SUNSET_CACHE_FILENAME, 'rb'))
+
+  today_at_midnight = datetime.combine(date.today(), datetime.min.time()).astimezone(MY_TIMEZONE)
+
+  if results == None or get_sunrise(results) < today_at_midnight:
+    print("Retrieving sunrise and sunset from internet")
+    response = requests.get(f"https://api.sunrise-sunset.org/json?lat={latitude}&lng={longitude}&formatted=0&date={todays_date}")
+    #print(response.json())
+    results = response.json()['results']
+    pickle.dump(results, open(SUNRISE_SUNSET_CACHE_FILENAME, 'wb'))
+  
+  return results
+
+
 def get_solar_times_as_local_time(latitude, longitude, todays_date):
-  response = requests.get(f"https://api.sunrise-sunset.org/json?lat={latitude}&lng={longitude}&formatted=0&date={todays_date}")
-  #print(response.json())
-  results = response.json()['results']
+  results = get_sunrise_sunset(latitude, longitude, todays_date)
   #print(f"UTC: {results['sunrise']}, {results['solar_noon']}, {results['civil_twilight_end']}")
 
   # Convert times from UTC to local time
-  sunrise = datetime.fromisoformat(results['sunrise']).astimezone(MY_TIMEZONE)
-  solar_noon = datetime.fromisoformat(results['solar_noon']).astimezone(MY_TIMEZONE)
-  #sunset = datetime.fromisoformat(results['sunset']).astimezone(MY_TIMEZONE)
-  sunset = datetime.fromisoformat(results['civil_twilight_end']).astimezone(MY_TIMEZONE)
+  sunrise = get_sunrise(results)
+  solar_noon = get_solar_noon(results)
+  sunset = get_sunset(results)
   #print(f"LOCAL: {sunrise}, {solar_noon}, {sunset}")
 
   return sunrise, solar_noon, sunset
@@ -80,4 +113,5 @@ elif now > sunset:
   new_temperature = wyze.WYZE_BULB_COLOR_TEMPERATURE_MIN
   print(f"After sunset. Temp={new_temperature}")
 
-wyze.main(['wyze.py', device_names, 'temperature', str(new_temperature)])
+# Call my wyze program to set the temperature
+home_automation.main(['home_automation.py', device_names, 'temperature', str(new_temperature)])
