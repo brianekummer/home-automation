@@ -60,7 +60,7 @@ def create_wyze_client(script_path):
 
   if new_client == None:
     log_text += 'CREATED'
-    new_client = Client(email=environ.get('WYZE_EMAIL'), password=environ.get('WYZE_PASSWORD'))
+    new_client = Client(email=environ.get('HA_EMAIL'), password=environ.get('HA_WYZE_PASSWORD'))
     pickle.dump(new_client, open(client_pathname, 'wb'))
 
   end_time = time.time()
