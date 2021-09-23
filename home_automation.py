@@ -114,7 +114,7 @@ def get_client(api):
   global clients
   if clients[api] == None:
     if api == 'wyze':
-      clients[api] = home_automation_wyze.create_wyze_client(SCRIPT_PATH)
+      clients[api] = home_automation_wyze.get_wyze_client(SCRIPT_PATH)
     elif api == 'vesync':
       clients[api] = home_automation_vesync.create_vesync_client(SCRIPT_PATH)
 
