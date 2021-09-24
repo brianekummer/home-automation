@@ -17,12 +17,14 @@ VESYNC_CLIENT_FILENAME = 'vesync_client.pickle'
 
 ACTION_ON = 'on'
 ACTION_OFF = 'off'
+ACTION_TOGGLE = 'toggle'
 ACTION_FAN_SPEED = 'speed'
 
 VESYNC_FAN_SPEED_MIN = 1
 VESYNC_FAN_SPEED_MAX = 3
 
 MY_TIMEZONE = datetime.now().astimezone().tzinfo
+
 
 """
   Log into VeSync, caching the authenticated client to a file.
@@ -101,6 +103,9 @@ def fan_action_on(client, fan, action_value):
   fan.turn_on()
 def fan_action_off(client, fan, action_value):
   fan.turn_off()
+def fan_action_toggle(client, fan, action_value):
+  fan.get_details()
+  fan.toggle_switch(fan.device_status == 'off')
 def fan_action_speed(client, fan, action_value):
   # FYI, changing the fan speed does NOT turn the fan on
   fan.change_fan_speed(int(action_value))
@@ -122,9 +127,10 @@ def fan_action_speed(client, fan, action_value):
 def fan_action(client, device_id, action, action_value):
   fan = next((f for f in client.fans if f.cid == device_id), None)
   fan_actions = {
-    ACTION_OFF:                    fan_action_off,
-    ACTION_ON:                     fan_action_on,
-    ACTION_FAN_SPEED:              fan_action_speed
+    ACTION_OFF:        fan_action_off,
+    ACTION_ON:         fan_action_on,
+    ACTION_TOGGLE:     fan_action_toggle,
+    ACTION_FAN_SPEED:  fan_action_speed
   }
   fan_actions[action](client, fan, action_value)
 
@@ -136,4 +142,5 @@ def dump_vesync_devices(script_path):
   client = create_vesync_client(script_path)
 
   for device in client.fans:
+    device.get_details()
     device.display()

@@ -263,6 +263,7 @@ def validate_parameters_for_device(device_name, device_type, action, action_valu
                         ACTION_COLOR_TEMPERATURE:      ACTION_VALUE_TYPE_COLOR_TEMPERATURE },
     DEVICE_TYPE_FAN:  { ACTION_ON:                     None,
                         ACTION_OFF:                    None,
+                        ACTION_TOGGLE:                 None,
                         ACTION_FAN_SPEED:              ACTION_VALUE_TYPE_FAN_SPEED }
   }
 
@@ -378,7 +379,6 @@ def main(params):
     # Wait for all the threads to finish
     for thread in thread_list:
       thread.join()  
-
 
 
 
