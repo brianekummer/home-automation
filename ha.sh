@@ -42,7 +42,10 @@ fi
 
 echo "Params are now: ${param1}, ${param2}, ${param3}"
 
+# SSH into the pi and run the command
+#ssh kupi@cluckcluck.us -p31944 -i "~/.ssh/id_rsa_pi_v2_no_password" ". ~/.env; /usr/local/opt/python-3.8.0/bin/python3.8 ~/home-automation/home_automation.py ${param1} ${param2} ${param3}"
 
-ssh kupi@cluckcluck.us -p31944 -i "~/.ssh/id_rsa_pi_v2_no_password" ". ~/.env; /usr/local/opt/python-3.8.0/bin/python3.8 ~/home-automation/home_automation.py ${param1} ${param2} ${param3}"
+# Run it locally. It runs 2x as fast as the pi. SSH'ing into the pi adds maybe 0.1-0.2 sec on to the pi's time.
+python ~/Personal/Code/git/home-automation/home_automation.py ${param1} ${param2} ${param3}
 
 #read -p "Press [Enter] key to start backup..."

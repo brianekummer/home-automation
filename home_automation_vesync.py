@@ -2,8 +2,8 @@
   Home automation script
   by Brian Kummer, Sept 2021
   
-  This class supports Wyze devices using the following unofficial API
-    - https://pypi.org/project/wyze-sdk/ requires Python 3.8 or higher
+  This class supports devices using the following unofficial VeSync API
+    - https://github.com/webdjoe/pyvesync
 """
 import os
 from os import path

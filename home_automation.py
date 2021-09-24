@@ -80,6 +80,7 @@ DEVICE_TYPE_FAN = 'fan'
 
 ACTION_ON = 'on'
 ACTION_OFF = 'off'
+ACTION_TOGGLE = 'toggle'
 ACTION_BRIGHTNESS = 'bright'
 ACTION_COLOR_TEMPERATURE = 'temp'
 ACTION_FAN_SPEED = 'speed'
@@ -114,7 +115,7 @@ def get_client(api):
   global clients
   if clients[api] == None:
     if api == 'wyze':
-      clients[api] = home_automation_wyze.create_wyze_client(SCRIPT_PATH)
+      clients[api] = home_automation_wyze.get_wyze_client(SCRIPT_PATH)
     elif api == 'vesync':
       clients[api] = home_automation_vesync.create_vesync_client(SCRIPT_PATH)
 
@@ -253,9 +254,11 @@ def validate_action_value(action_value_type, action_value):
 def validate_parameters_for_device(device_name, device_type, action, action_value):
   validations = {
     DEVICE_TYPE_PLUG: { ACTION_ON:                     None,
-                        ACTION_OFF:                    None }, 
+                        ACTION_OFF:                    None, 
+                        ACTION_TOGGLE:                 None }, 
     DEVICE_TYPE_BULB: { ACTION_ON:                     None,
                         ACTION_OFF:                    None,
+                        ACTION_TOGGLE:                 None,
                         ACTION_BRIGHTNESS:             ACTION_VALUE_TYPE_BRIGHTNESS,
                         ACTION_COLOR_TEMPERATURE:      ACTION_VALUE_TYPE_COLOR_TEMPERATURE },
     DEVICE_TYPE_FAN:  { ACTION_ON:                     None,
@@ -311,10 +314,10 @@ def display_help():
   print(f"    <device-names>:   comma-separated-list of one or more devices (i.e. fan|ac|litetop|etc)")
   print(f"")
   print(f"    For plugs:")
-  print(f"      <action>:       {ACTION_ON}|{ACTION_OFF}")
+  print(f"      <action>:       {ACTION_ON}|{ACTION_OFF}|{ACTION_TOGGLE}")
   print(f"")
   print(f"    For bulbs:")
-  print(f"      <action>:       {ACTION_ON}|{ACTION_OFF}|{ACTION_BRIGHTNESS}|{ACTION_COLOR_TEMPERATURE}")
+  print(f"      <action>:       {ACTION_ON}|{ACTION_OFF}|{ACTION_TOGGLE}|{ACTION_BRIGHTNESS}|{ACTION_COLOR_TEMPERATURE}")
   print(f"      <action-type>:  action '{ACTION_BRIGHTNESS}' requires either")
   print(f"                        a number between {home_automation_wyze.WYZE_BULB_BRIGHTNESS_MIN} and {home_automation_wyze.WYZE_BULB_BRIGHTNESS_MAX}")
   print(f"                        or +|- to increase/decrease brightness by 10%")
@@ -331,6 +334,7 @@ def display_help():
   print(f"  home_automation.py fan on")
   print(f"  home_automation.py fan,ac off")
   print(f"  home_automation.py litetop on")
+  print(f"  home_automation.py litetop toggle")
   print(f"  home_automation.py litetop bright 25")
   print(f"  home_automation.py litetop bright +")
   print(f"  home_automation.py litetop temp 3800")
