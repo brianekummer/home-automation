@@ -90,6 +90,8 @@ def validate_fan_action_value(property_name, property_value, min_value, max_valu
     print(f"action-value is a required field\n")
   elif property_value.isnumeric() and min_value <= int(property_value) <= max_value:
     is_valid = True
+  elif property_value == "cycle":
+    is_valid = True
   else:
     print(f"{property_value} is not a valid {property_name} value\n")
   
@@ -108,7 +110,14 @@ def fan_action_toggle(client, fan, action_value):
   fan.toggle_switch(fan.device_status == 'off')
 def fan_action_speed(client, fan, action_value):
   # FYI, changing the fan speed does NOT turn the fan on
-  fan.change_fan_speed(int(action_value))
+  if action_value == "cycle":
+    fan.get_details()
+    fan_speed = fan.fan_level
+    fan_speed = 1 if fan_speed == 3 else fan_speed+1
+    fan.change_fan_speed(fan_speed)
+  else:
+    fan.change_fan_speed(int(action_value))
+
 
 
 """
