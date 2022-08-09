@@ -16,7 +16,7 @@ done
 
 sleep 30    # Give myself time to get out of the room
 
-devices="ac,fan,litetop,litemiddle,litebottom"
+devices="officeac,officefan,officelite,officelitetop,officelitemiddle,officelitebottom"
 ssh kupi@cluckcluck.us -p31944 -i "~/.ssh/id_rsa_pi_v2_no_password" ". ~/.env; /usr/local/opt/python-3.8.0/bin/python3.8 ~/home-automation/home_automation.py ${devices} off"
 
 rundll32.exe powrprof.dll,SetSuspendState 0,1,0
