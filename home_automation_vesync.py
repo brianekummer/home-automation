@@ -15,6 +15,7 @@ from pyvesync import VeSync
 
 VESYNC_CLIENT_FILENAME = 'vesync_client.pickle'
 
+ACTION_GET = 'get'
 ACTION_ON = 'on'
 ACTION_OFF = 'off'
 ACTION_TOGGLE = 'toggle'
@@ -101,6 +102,11 @@ def validate_fan_action_value(property_name, property_value, min_value, max_valu
 """
   Fan actions
 """
+def fan_action_get(client, fan, action_value):
+  fan.get_details()
+  # TODO- I have no idea if this works, or if I need to replicate dump_device() 
+  # from home_automation_wyze.py.
+  print(fan)
 def fan_action_on(client, fan, action_value):
   fan.turn_on()
 def fan_action_off(client, fan, action_value):
@@ -136,6 +142,7 @@ def fan_action_speed(client, fan, action_value):
 def fan_action(client, device_id, action, action_value):
   fan = next((f for f in client.fans if f.cid == device_id), None)
   fan_actions = {
+    ACTION_GET:        fan_action_get,
     ACTION_OFF:        fan_action_off,
     ACTION_ON:         fan_action_on,
     ACTION_TOGGLE:     fan_action_toggle,

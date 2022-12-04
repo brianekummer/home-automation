@@ -14,7 +14,11 @@
   I tried to optimize this by caching the device. It worked great for on/off,
   but fails for toggle, brightness, and color, because those REQUIRE a trip
   to Wyze to get latest info so I can know if the bulb is already on, or
+<<<<<<< HEAD
   what the current brightness, color temperature is. So this renders worthless
+=======
+  what th ecurrent brightness, color temperature is. So this renders worthless
+>>>>>>> 418e3510e2c0e4bc857aee0081659a4ba1fdf566
   any caching of the device.
 """
 import sys

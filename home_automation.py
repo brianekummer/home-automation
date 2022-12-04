@@ -78,6 +78,7 @@ DEVICE_TYPE_PLUG = 'plug'
 DEVICE_TYPE_BULB = 'bulb'
 DEVICE_TYPE_FAN = 'fan'
 
+ACTION_GET = 'get'
 ACTION_ON = 'on'
 ACTION_OFF = 'off'
 ACTION_TOGGLE = 'toggle'
@@ -253,15 +254,18 @@ def validate_action_value(action_value_type, action_value):
 """
 def validate_parameters_for_device(device_name, device_type, action, action_value):
   validations = {
-    DEVICE_TYPE_PLUG: { ACTION_ON:                     None,
+    DEVICE_TYPE_PLUG: { ACTION_GET:                    None,
+                        ACTION_ON:                     None,
                         ACTION_OFF:                    None, 
                         ACTION_TOGGLE:                 None }, 
-    DEVICE_TYPE_BULB: { ACTION_ON:                     None,
+    DEVICE_TYPE_BULB: { ACTION_GET:                    None,
+                        ACTION_ON:                     None,
                         ACTION_OFF:                    None,
                         ACTION_TOGGLE:                 None,
                         ACTION_BRIGHTNESS:             ACTION_VALUE_TYPE_BRIGHTNESS,
                         ACTION_COLOR_TEMPERATURE:      ACTION_VALUE_TYPE_COLOR_TEMPERATURE },
-    DEVICE_TYPE_FAN:  { ACTION_ON:                     None,
+    DEVICE_TYPE_FAN:  { ACTION_GET:                    None,
+                        ACTION_ON:                     None,
                         ACTION_OFF:                    None,
                         ACTION_TOGGLE:                 None,
                         ACTION_FAN_SPEED:              ACTION_VALUE_TYPE_FAN_SPEED }
@@ -315,10 +319,10 @@ def display_help():
   print(f"    <device-names>:   comma-separated-list of one or more devices (i.e. fan|ac|litetop|etc)")
   print(f"")
   print(f"    For plugs:")
-  print(f"      <action>:       {ACTION_ON}|{ACTION_OFF}|{ACTION_TOGGLE}")
+  print(f"      <action>:       {ACTION_GET}|{ACTION_ON}|{ACTION_OFF}|{ACTION_TOGGLE}")
   print(f"")
   print(f"    For bulbs:")
-  print(f"      <action>:       {ACTION_ON}|{ACTION_OFF}|{ACTION_TOGGLE}|{ACTION_BRIGHTNESS}|{ACTION_COLOR_TEMPERATURE}")
+  print(f"      <action>:       {ACTION_GET}|{ACTION_ON}|{ACTION_OFF}|{ACTION_TOGGLE}|{ACTION_BRIGHTNESS}|{ACTION_COLOR_TEMPERATURE}")
   print(f"      <action-type>:  action '{ACTION_BRIGHTNESS}' requires either")
   print(f"                        a number between {home_automation_wyze.WYZE_BULB_BRIGHTNESS_MIN} and {home_automation_wyze.WYZE_BULB_BRIGHTNESS_MAX}")
   print(f"                        or +|- to increase/decrease brightness by 10%")
@@ -327,11 +331,12 @@ def display_help():
   print(f"                        or +|- to increase/decrease color temperature by 10%")
   print(f"")
   print(f"    For fans/air purifiers:")
-  print(f"      <action>:       {ACTION_ON}|{ACTION_OFF}|{ACTION_FAN_SPEED}")
+  print(f"      <action>:       {ACTION_GET}|{ACTION_ON}|{ACTION_OFF}|{ACTION_FAN_SPEED}")
   print(f"      <action-type>:  action '{ACTION_FAN_SPEED}' requires a number 1-3")
   print(f"                        Setting the fan speed does NOT turn the fan/air purifier on")
   print(f"")
   print(f"Examples:")
+  print(f"  home_automation.py fan get")
   print(f"  home_automation.py fan on")
   print(f"  home_automation.py fan,ac off")
   print(f"  home_automation.py litetop on")

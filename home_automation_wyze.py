@@ -8,6 +8,12 @@
   This class uses the retrying library Tenacity: https://github.com/jd/tenacity
 
   This SDK does not provide a "toggle" functionality, so I wrote my own
+
+  I tried to optimize this by caching the device. It worked great for on/off,
+  but failed for toggle, brightness, and color temperature, because those 
+  require a trip to Wyze to get latest state of that device so I can know if
+  the bulb is already on, or what the current brightness or color temperature
+  is. So this renders worthless any caching of the device.
 """
 import sys
 import os
@@ -19,9 +25,11 @@ from datetime import datetime
 from tenacity import Retrying, RetryError, stop_after_attempt
 from wyze_sdk import Client
 from wyze_sdk.errors import WyzeApiError
+import pprint
 
 WYZE_CLIENT_FILENAME = 'wyze_client.pickle'
 
+ACTION_GET = 'get'
 ACTION_ON = 'on'
 ACTION_OFF = 'off'
 ACTION_TOGGLE = 'toggle'
@@ -39,11 +47,12 @@ WYZE_BULB_COLOR_TEMPERATURE_INTERVAL = (WYZE_BULB_COLOR_TEMPERATURE_RANGE)/5
 SCRIPT_PATH = None
 
 
-
 def create_wyze_client():
+  #print(f"create_wyze_client - start")
   client_pathname = os.path.join(SCRIPT_PATH, WYZE_CLIENT_FILENAME)
   new_client = Client(email=environ.get('HA_EMAIL'), password=environ.get('HA_WYZE_PASSWORD'))
   pickle.dump(new_client, open(client_pathname, 'wb'))
+  #print(f"create_wyze_client - end")
   return new_client
 
 
@@ -55,6 +64,8 @@ def create_wyze_client():
     * The authenticated client
 """
 def get_wyze_client(script_path):
+  #print(f"get_wyze_client - start")
+
   global SCRIPT_PATH
   SCRIPT_PATH = script_path
 
@@ -63,12 +74,49 @@ def get_wyze_client(script_path):
     new_client = pickle.load(open(client_pathname, 'rb'))
   else:
     new_client = create_wyze_client()
+  #print(f"get_wyze_client - end")
   return new_client
-  
+
+
+
+"""
+# For caching, is now unused
+def get_wyze_device(client, device_id, create_device):
+  #device_cache_filename = os.path.join(SCRIPT_PATH, f"wyze_{device_id}.pickle")
+  device_cache_filename = os.path.join(f"c:\Temp\wyze_{device_id}.pickle")
+  #print(f"get_wyze_device. {device_cache_filename}")
+
+  if path.exists(device_cache_filename):
+    #print(f"get_wyze_device.if - reading device pickle")
+    device = pickle.load(open(device_cache_filename, 'rb'))
+  else:
+    #print(f"get_wyze_device.else - creating device and pickling")
+    device = create_device(client, device_id)
+    pickle.dump(device, open(device_cache_filename, 'wb'))
+
+  return device
+"""
+
+
+def dump_device(device):
+  # I had to roll my own
+  my_device = {
+    'mac': device.mac,
+    'nickname': device.nickname,
+    'is_online': device.is_online,
+    'product model': device.product.model,
+    'type': device.type
+  }
+  # If I want other properties depending on if device is a bulb or plug,
+  # I can add those here
+  return my_device
+
 
 """
   Plug actions
 """
+def plug_action_get(client, plug):
+  print(dump_device(client.plugs.info(device_mac=plug.mac)))
 def plug_action_off(client, plug):
   client.plugs.turn_off(device_mac=plug.mac, device_model=plug.product.model)
 def plug_action_on(client, plug):
@@ -95,8 +143,11 @@ def plug_action(client, device_id, action, action_value):
   for attempt in Retrying(stop=stop_after_attempt(3)):
     with attempt:
       try:
+        #print(f"plug_action.try - start")
         plug = client.plugs.info(device_mac=device_id)
+        #print(f"plug_action.try - got plug")
         plug_actions = {
+          ACTION_GET:     plug_action_get,
           ACTION_OFF:     plug_action_off,
           ACTION_ON:      plug_action_on,
           ACTION_TOGGLE:  plug_action_toggle
@@ -140,9 +191,13 @@ def validate_bulb_action_value(property_name, property_value, min_value, max_val
 """
   Bulb actions
 """
+def bulb_action_get(client, bulb, action_value):
+  print(dump_device(client.bulbs.info(device_mac=bulb.mac)))
 def bulb_action_on(client, bulb, action_value):
+  #print(f"bulb_action_on - start, mac={bulb.mac}, device_model={bulb.product.model}")
   client.bulbs.turn_on(device_mac=bulb.mac, device_model=bulb.product.model)
 def bulb_action_off(client, bulb, action_value):
+  #print(f"bulb_action_off - start, mac={bulb.mac}, device_model={bulb.product.model}")
   client.bulbs.turn_off(device_mac=bulb.mac, device_model=bulb.product.model)
 def bulb_action_toggle(client, bulb, action_value):
   if bulb.is_on:
@@ -150,6 +205,11 @@ def bulb_action_toggle(client, bulb, action_value):
   else:
     client.bulbs.turn_on(device_mac=bulb.mac, device_model=bulb.product.model)
 def bulb_action_brightness(client, bulb, action_value):
+  # White bulbs do not turn on when you change their brightness, so I'll
+  # turn it on here
+  if bulb.type == 'Light' and not bulb.is_on:
+    client.bulbs.turn_on(device_mac=bulb.mac, device_model=bulb.product.model)
+
   brightness = {
     '+': min(bulb.brightness + WYZE_BULB_BRIGHTNESS_INTERVAL, WYZE_BULB_BRIGHTNESS_MAX),
     '-': max(bulb.brightness - WYZE_BULB_BRIGHTNESS_INTERVAL, WYZE_BULB_BRIGHTNESS_MIN)
@@ -186,11 +246,16 @@ def bulb_action_color_temperature(client, bulb, action_value):
     * Sets the bulb's color temperature
 """
 def bulb_action(client, device_id, action, action_value):
+  #print(f"bulb_action - start. device_id={device_id}, action={action}, action_value={action_value}")
   for attempt in Retrying(stop=stop_after_attempt(3)):
     with attempt:
       try:
+        #print(f"bulb_action.try - start")
         bulb = client.bulbs.info(device_mac=device_id)
+        #print(f"bulb_action.try - got bulb")
+
         bulb_actions = {
+          ACTION_GET:                    bulb_action_get,
           ACTION_OFF:                    bulb_action_off,
           ACTION_ON:                     bulb_action_on,
           ACTION_TOGGLE:                 bulb_action_toggle,
@@ -198,6 +263,7 @@ def bulb_action(client, device_id, action, action_value):
           ACTION_COLOR_TEMPERATURE:      bulb_action_color_temperature
         }
         bulb_actions[action](client, bulb, action_value)
+        #print(f"bulb_action.try - done")
 
       except WyzeApiError as e:
         if 'The access token has expired' in e.args[0]:
